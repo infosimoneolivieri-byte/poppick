@@ -21,12 +21,13 @@
     providers: null,
     openGroups: new Set(['stili']),
     results: null, heroIndex: 0, loading: null, error: null, reveal: false,
-    sheet: null, wheel: null,
+    sheet: null, wheel: null, showCount: 20, sortBy: 'match', titleHits: [],
     personHits: [], keywordHits: [],
   };
 
   const seenList = () => S.get('seen', []);
   const watchList = () => S.get('watchlist', []);
+  const hiddenList = () => S.get('hidden', []);
   const savedList = () => S.get('saved', []);
   const slim = (it) => ({ key: it.key, id: it.id, kind: it.kind, title: it.title, year: it.year, date: it.date, poster: it.poster, tmdbVote: it.tmdbVote, tmdbVotes: it.tmdbVotes, overview: it.overview, genreIds: it.genreIds || [] });
   const inList = (list, key) => list.some((x) => x.key === key);
@@ -122,8 +123,9 @@
   function actionButtons(it) {
     return '<button class="btn" data-act="seen" data-key="' + esc(it.key) + '" aria-pressed="' + inList(seenList(), it.key) + '">Già visto</button>'
       + '<button class="btn" data-act="watch" data-key="' + esc(it.key) + '" aria-pressed="' + inList(watchList(), it.key) + '">' + (inList(watchList(), it.key) ? 'Nella lista' : 'Salva per dopo') + '</button>'
-      + '<button class="btn wide" data-act="rate" data-key="' + esc(it.key) + '">' + (S.get('ratings', {})[it.key] ? 'Modifica i voti' : 'Vota questo titolo') + '</button>'
-      ;
+      + '<button class="btn" data-act="rate" data-key="' + esc(it.key) + '">' + (S.get('ratings', {})[it.key] ? 'Modifica i voti' : 'Vota') + '</button>'
+      + '<button class="btn" data-act="hide" data-key="' + esc(it.key) + '" aria-pressed="' + inList(hiddenList(), it.key) + '">' + (inList(hiddenList(), it.key) ? 'Nascosto' : 'Non mi interessa') + '</button>'
+      + '<button class="btn wide" data-act="similar-search" data-key="' + esc(it.key) + '">Trova simili con i vostri filtri</button>';
   }
   function trailerHtml(it) {
     const search = '<button class="link-btn small" data-act="open" data-url="' + esc(E.trailerSearchUrl(it)) + '">Cerca il trailer in italiano su YouTube</button>';
@@ -210,6 +212,7 @@
 
     $('screen').innerHTML = '<header class="masthead"><div class="brand"><svg viewBox="16 16 76 76" aria-hidden="true"><path fill="#FFE3A3" d="M22.975 43.05a5.775 5.775 0 1 0 11.55 0a5.775 5.775 0 1 0 -11.55 0Z"/><path fill="#FFE3A3" d="M33.475 43.05a5.775 5.775 0 1 0 11.55 0a5.775 5.775 0 1 0 -11.55 0Z"/><path fill="#F8EDE0" d="M27.7 36.75a6.300000000000001 6.300000000000001 0 1 0 12.600000000000001 0a6.300000000000001 6.300000000000001 0 1 0 -12.600000000000001 0Z"/><path fill="#F2BC5E" d="M32.11 43.05a1.8900000000000001 1.8900000000000001 0 1 0 3.7800000000000002 0a1.8900000000000001 1.8900000000000001 0 1 0 -3.7800000000000002 0Z"/><path fill="#FFE3A3" d="M62.975 43.05a5.775 5.775 0 1 0 11.55 0a5.775 5.775 0 1 0 -11.55 0Z"/><path fill="#FFE3A3" d="M73.475 43.05a5.775 5.775 0 1 0 11.55 0a5.775 5.775 0 1 0 -11.55 0Z"/><path fill="#F8EDE0" d="M67.7 36.75a6.300000000000001 6.300000000000001 0 1 0 12.600000000000001 0a6.300000000000001 6.300000000000001 0 1 0 -12.600000000000001 0Z"/><path fill="#F2BC5E" d="M72.11 43.05a1.8900000000000001 1.8900000000000001 0 1 0 3.7800000000000002 0a1.8900000000000001 1.8900000000000001 0 1 0 -3.7800000000000002 0Z"/><path fill="#FFE3A3" d="M32.975 36.05a5.775 5.775 0 1 0 11.55 0a5.775 5.775 0 1 0 -11.55 0Z"/><path fill="#FFE3A3" d="M43.475 36.05a5.775 5.775 0 1 0 11.55 0a5.775 5.775 0 1 0 -11.55 0Z"/><path fill="#F8EDE0" d="M37.7 29.75a6.300000000000001 6.300000000000001 0 1 0 12.600000000000001 0a6.300000000000001 6.300000000000001 0 1 0 -12.600000000000001 0Z"/><path fill="#F2BC5E" d="M42.11 36.05a1.8900000000000001 1.8900000000000001 0 1 0 3.7800000000000002 0a1.8900000000000001 1.8900000000000001 0 1 0 -3.7800000000000002 0Z"/><path fill="#FFE3A3" d="M52.975 36.05a5.775 5.775 0 1 0 11.55 0a5.775 5.775 0 1 0 -11.55 0Z"/><path fill="#FFE3A3" d="M63.475 36.05a5.775 5.775 0 1 0 11.55 0a5.775 5.775 0 1 0 -11.55 0Z"/><path fill="#F8EDE0" d="M57.7 29.75a6.300000000000001 6.300000000000001 0 1 0 12.600000000000001 0a6.300000000000001 6.300000000000001 0 1 0 -12.600000000000001 0Z"/><path fill="#F2BC5E" d="M62.11 36.05a1.8900000000000001 1.8900000000000001 0 1 0 3.7800000000000002 0a1.8900000000000001 1.8900000000000001 0 1 0 -3.7800000000000002 0Z"/><path fill="#FFE3A3" d="M42.975 43.05a5.775 5.775 0 1 0 11.55 0a5.775 5.775 0 1 0 -11.55 0Z"/><path fill="#FFE3A3" d="M53.475 43.05a5.775 5.775 0 1 0 11.55 0a5.775 5.775 0 1 0 -11.55 0Z"/><path fill="#F8EDE0" d="M47.7 36.75a6.300000000000001 6.300000000000001 0 1 0 12.600000000000001 0a6.300000000000001 6.300000000000001 0 1 0 -12.600000000000001 0Z"/><path fill="#F2BC5E" d="M52.11 43.05a1.8900000000000001 1.8900000000000001 0 1 0 3.7800000000000002 0a1.8900000000000001 1.8900000000000001 0 1 0 -3.7800000000000002 0Z"/><path fill="#FFE3A3" d="M42.975 28.05a5.775 5.775 0 1 0 11.55 0a5.775 5.775 0 1 0 -11.55 0Z"/><path fill="#FFE3A3" d="M53.475 28.05a5.775 5.775 0 1 0 11.55 0a5.775 5.775 0 1 0 -11.55 0Z"/><path fill="#F8EDE0" d="M47.7 21.75a6.300000000000001 6.300000000000001 0 1 0 12.600000000000001 0a6.300000000000001 6.300000000000001 0 1 0 -12.600000000000001 0Z"/><path fill="#F2BC5E" d="M52.11 28.05a1.8900000000000001 1.8900000000000001 0 1 0 3.7800000000000002 0a1.8900000000000001 1.8900000000000001 0 1 0 -3.7800000000000002 0Z"/><path fill="#F8EDE0" d="M30 44H78L71 88H37Z"/><path fill="#C22F52" d="M30 44H39.6L43.8 88H37Z"/><path fill="#C22F52" d="M49.2 44H58.8L57.4 88H50.6Z"/><path fill="#C22F52" d="M68.4 44H78L71 88H64.2Z"/><path fill="#2A0D1C" d="M40 67a14 14 0 1 0 28 0a14 14 0 1 0 -28 0Z"/><path fill="#F2BC5E" d="M49.5 59.5L62 67L49.5 74.5Z"/></svg><h1>PopPick</h1></div>'
       + '<button class="icon-btn" data-act="settings" aria-label="Impostazioni e chiavi">' + icon.gear + '</button></header>'
+      + '<div class="title-search"><input class="text-in" id="title-q" type="search" autocomplete="off" placeholder="Cerca un film o una serie per nome" aria-label="Cerca un film o una serie per nome"><div class="suggest" id="title-hits"></div></div>'
       + ((keys.claude || '').trim() ? '<form class="ask" id="ask"><input id="ask-text" aria-label="Descrivi cosa cercate" placeholder="Es. un thriller italiano sotto le due ore"><button>Cerca</button></form>' : '')
       + bannersHtml()
       + '<div class="who-seg">' + seg('viewers', [['both', esc(profiles[0].name) + ' e ' + esc(profiles[1].name)], ['p1', 'Solo ' + esc(profiles[0].name)], ['p2', 'Solo ' + esc(profiles[1].name)]], viewersPref) + '</div>'
@@ -290,9 +293,14 @@
     const others = r.items.filter((_, i) => i !== idx);
     const usedCriteria = E.CRITERIA.filter(({ k }) => (hero.parts[k] || 0) > 0);
 
+    const sorted = E.sortItems(others, app.sortBy);
+    const shown = sorted.slice(0, app.showCount);
+    const canMore = sorted.length > app.showCount || (r.ctx && r.ctx.queue.length > 0);
+    const sorts = [['match', 'Punteggio'], ['critic', 'Critica'], ['audience', 'Pubblico'], ['year', 'Più recenti'], ['runtime', 'Più brevi']];
     $('screen').innerHTML = (app.reveal ? '<div class="curtain" aria-hidden="true"><i></i><i></i></div>' : '')
+      + (r.seed ? '<p class="seed-note">Titoli simili a <b>' + esc(r.seed.title) + '</b> che rispettano i vostri filtri. <button class="link-btn" data-act="go">Torna alla ricerca normale</button></p>' : '')
       + '<article class="pick"><div class="pick-top' + (hero.title.length > 24 ? ' long' : '') + '">' + poster(hero, 'w500', true) + '<div>'
-      + '<p class="lead-label">' + (idx === 0 ? 'La proposta per stasera' : 'Un\'altra proposta') + '</p>'
+      + '<p class="lead-label">' + (r.seed ? 'Simile a ' + esc(r.seed.title) : idx === 0 ? 'La proposta per stasera' : 'Un\'altra proposta') + '</p>'
       + '<h1>' + esc(hero.title) + '</h1><p class="meta">' + esc(metaLine(hero)) + '</p>' + accessHtml(hero) + '</div></div>'
       + '<div class="match"><strong>' + hero.match + '</strong><span>su 100 rispetto a ciò che conta per voi</span></div>'
       + bar(hero)
@@ -302,13 +310,17 @@
       + '<div class="actions">' + actionButtons(hero)
       + (r.items.length > 1 ? '<button class="btn wide" data-act="next">Proponine un altro</button>' : '') + '</div></article>'
       + notes
-      + (others.length ? '<section class="others"><h2>Le altre proposte</h2>' + others.map((it) => {
+      + (others.length ? '<section class="others"><h2>Le altre proposte</h2>'
+        + '<div class="sort-row" role="group" aria-label="Ordina per">' + sorts.map(([v, l]) => chip('sort', v, l, app.sortBy === v)).join('') + '</div>'
+        + shown.map((it) => {
         const logos = E.offersOf(it, app.filters.includePaid).slice(0, 4).map((o) => '<img alt="' + esc(o.provider_name) + '" src="' + IMG + 'w92' + o.logo_path + '">').join('');
         return '<button class="row" data-act="detail" data-key="' + esc(it.key) + '">' + poster(it, 'w185')
           + '<span><h3>' + esc(it.title) + '</h3><div class="meta">' + esc(metaLine(it)) + '</div>' + accessHtml(it) + bar(it)
           + (logos ? '<div class="logos">' + logos + '</div>' : '') + '</span>'
           + '<span class="score">' + it.match + '</span></button>';
-      }).join('') + '</section>' : '');
+      }).join('')
+        + (canMore ? '<button class="btn more-btn" data-act="more"' + (app.loadingMore ? ' disabled' : '') + '>' + (app.loadingMore ? 'Cerco altri titoli' : 'Mostrane altri') + '</button>' : '')
+        + '</section>' : '');
 
     if (app.reveal) {
       app.reveal = false;
@@ -318,7 +330,8 @@
 
   /* ---------- Liste ---------- */
   function listRows(list, kind) {
-    if (!list.length) return '<p class="empty-line">' + (kind === 'watch' ? 'I titoli salvati per dopo compaiono qui.' : 'I titoli segnati come già visti non verranno più proposti.') + '</p>';
+    const empty = { watch: 'I titoli salvati per dopo compaiono qui.', seen: 'I titoli segnati come già visti non verranno più proposti.', hidden: 'I titoli che non vi interessano compaiono qui. Toglili per vederli di nuovo nelle proposte.' };
+    if (!list.length) return '<p class="empty-line">' + empty[kind] + '</p>';
     return list.map((it) => '<div class="saved"><button class="with-thumb" data-act="detail-ref" data-list="' + kind + '" data-key="' + esc(it.key) + '">' + poster(it, 'w185') + '<span>' + esc(it.title) + (it.year ? ' <span class="muted small">' + it.year + '</span>' : '') + '</span></button>'
       + '<button class="del" data-act="rm-' + kind + '" data-key="' + esc(it.key) + '" aria-label="Togli ' + esc(it.title) + ' dalla lista">×</button></div>').join('');
   }
@@ -332,7 +345,8 @@
       + '<h2 class="list-title">Da vedere</h2>' + listRows(watchList(), 'watch')
       + '<h2 class="list-title">Ricerche salvate</h2>'
       + (saved.length ? saved.map((s, i) => '<div class="saved"><button data-act="run-saved" data-val="' + i + '">' + esc(s.name) + '</button><button class="del" data-act="rm-saved" data-val="' + i + '" aria-label="Elimina ' + esc(s.name) + '">×</button></div>').join('') : '<p class="empty-line">Salva una combinazione di filtri per ritrovarla con un tocco.</p>')
-      + '<h2 class="list-title">Già visti</h2>' + listRows(seenList(), 'seen');
+      + '<h2 class="list-title">Già visti</h2>' + listRows(seenList(), 'seen')
+      + '<h2 class="list-title">Non vi interessano</h2>' + listRows(hiddenList(), 'hidden');
   }
 
   /* ---------- Schede ---------- */
@@ -437,14 +451,16 @@
   }
 
   /* ---------- Ricerca ---------- */
-  async function go() {
+  async function go(seed) {
     app.tab = 'results';
+    app.showCount = 20;
+    app.sortBy = 'match';
     app.loading = 'Cerco tra i titoli che rispettano i vostri filtri';
     app.error = null; app.heroIndex = 0;
     render();
     window.scrollTo(0, 0);
     try {
-      const r = await A.search(app.filters, (msg) => { app.loading = msg; if (app.tab === 'results') renderResults(); });
+      const r = await A.search(app.filters, (msg) => { app.loading = msg; if (app.tab === 'results') renderResults(); }, seed && seed.key ? { seed } : null);
       app.results = r;
       app.reveal = r.items.length > 0;
     } catch (e) {
@@ -475,7 +491,7 @@
   }
 
   function findItem(key) {
-    const pools = [(app.sheet && app.sheet.lock ? [app.sheet.lock.item] : []), (app.sheet && app.sheet.queue) || [], (app.results && app.results.items) || [], (app.sheet && app.sheet.similar) || [], (app.sheet && app.sheet.item ? [app.sheet.item] : []), watchList(), seenList()];
+    const pools = [app.titleHits || [], (app.sheet && app.sheet.slices ? app.sheet.slices.map((x) => x.item) : []), hiddenList(), (app.sheet && app.sheet.lock ? [app.sheet.lock.item] : []), (app.sheet && app.sheet.queue) || [], (app.results && app.results.items) || [], (app.sheet && app.sheet.similar) || [], (app.sheet && app.sheet.item ? [app.sheet.item] : []), watchList(), seenList()];
     for (const p of pools) { const hit = p.find((x) => x.key === key); if (hit) return hit; }
     return null;
   }
@@ -592,19 +608,37 @@
     const c = S.get('wheelCtx', null);
     await prepareWheel(c && c.night === X.nightId() ? c : { usedJolly: 0 });
   }
+  // Esclusioni solo per la ruota, su questo telefono: non toccano i filtri della ricerca.
+  const wheelPrefs = () => Object.assign({ exclude: [], size: 8 }, S.get('wheelPrefs', {}));
+  function wheelFilters() {
+    const wp = wheelPrefs();
+    const f = JSON.parse(JSON.stringify(app.filters));
+    f.excludeGenres = [...new Set((f.excludeGenres || []).concat(wp.exclude))];
+    f.genres = (f.genres || []).filter((g) => !wp.exclude.includes(g));
+    return f;
+  }
+  function excludedIds() {
+    const ids = [];
+    wheelPrefs().exclude.forEach((k) => {
+      const g = E.GENRES.find((x) => x.k === k);
+      if (g) [g.m, g.t].forEach((id) => { if (id != null && !ids.includes(id)) ids.push(id); });
+    });
+    return ids;
+  }
   async function prepareWheel(ctx) {
     S.set('wheelCtx', Object.assign({}, ctx, { night: X.nightId() }));
     const s = { type: 'wheel', phase: 'loading', msg: 'Preparo la ruota con i titoli più adatti', ctx };
     openSheet(s);
     try {
-      const r = await A.search(app.filters, (m) => { if (app.sheet === s) { s.msg = m; renderSheet(); } });
+      const r = await A.search(wheelFilters(), (m) => { if (app.sheet === s) { s.msg = m; renderSheet(); } });
       if (app.sheet !== s) return;
       const excluded = new Set((ctx.exclude || []));
-      const items = r.items.filter((i) => !excluded.has(i.key));
+      const noGenres = excludedIds();
+      const items = r.items.filter((i) => !excluded.has(i.key) && !(i.genreIds || []).some((id) => noGenres.includes(id)));
       if (items.length < 2) {
         s.phase = 'empty'; s.hints = r.hints; s.notes = r.notes; s.count = items.length;
       } else {
-        s.phase = 'ready'; s.slices = X.wheelSlices(items, 8); s.notes = r.notes;
+        s.phase = 'ready'; s.all = items; s.slices = X.wheelSlices(items, wheelPrefs().size); s.notes = r.notes;
       }
     } catch (e) {
       s.phase = 'error'; s.msg = e instanceof A.UserError ? e.message : 'Qualcosa è andato storto. Riprova.';
@@ -614,12 +648,21 @@
   function wheelCss(slices) {
     return 'conic-gradient(' + slices.map((sl, i) => PALETTE[i % PALETTE.length] + ' ' + (sl.start * 360).toFixed(2) + 'deg ' + (sl.end * 360).toFixed(2) + 'deg').join(',') + ')';
   }
+  function wheelControls() {
+    const wp = wheelPrefs();
+    const label = (g) => (g.k === 'animazione' ? 'Animazione e cartoni' : g.n);
+    return '<details class="wheel-opts"><summary><b>Stasera escludi</b><span class="muted small">'
+      + (wp.exclude.length ? esc(wp.exclude.map((k) => label(E.GENRES.find((g) => g.k === k))).join(', ')) : 'Nessun genere escluso') + '</span></summary>'
+      + '<div class="chips">' + E.GENRES.map((g) => chip('wheel-ex', g.k, label(g), wp.exclude.includes(g.k), 'no')).join('') + '</div>'
+      + '<span class="field-label" style="margin-top:14px">Quanti titoli sulla ruota</span>' + seg('wheel-size', [['4', '4'], ['6', '6'], ['8', '8']], String(wp.size))
+      + '<p class="small muted" style="margin-top:8px">Valgono solo per la ruota e restano salvati su questo telefono.</p></details>';
+  }
   function drawWheel(root, s) {
     const head = '<div class="sheet full wheel-page" role="dialog" aria-modal="true" aria-label="Scegli per me"><div class="sheet-head"><button class="close" data-act="close" aria-label="Chiudi">×</button></div>';
     if (s.phase === 'loading') { root.innerHTML = head + '<h1>La ruota</h1><p aria-live="polite">' + esc(s.msg) + '</p><div class="loading-line"><i></i></div></div>'; return; }
     if (s.phase === 'error') { root.innerHTML = head + '<h1>Ruota ferma</h1><p>' + esc(s.msg) + '</p></div>'; return; }
     if (s.phase === 'empty') {
-      root.innerHTML = head + '<h1>Troppo pochi titoli</h1><p>Per girare servono almeno due titoli che rispettano i filtri.</p>'
+      root.innerHTML = head + '<h1>Troppo pochi titoli</h1><p>Per girare servono almeno due titoli che rispettano i filtri.</p>' + wheelControls()
         + (s.notes || []).map((n) => '<p class="note">' + esc(n) + '</p>').join('')
         + '<button class="btn" style="width:100%;margin-top:16px" data-act="close">Modifica i filtri</button></div>';
       return;
@@ -643,6 +686,7 @@
       return sl.item.poster ? '<img class="wheel-thumb" alt="" src="' + IMG + 'w92' + sl.item.poster + '" style="transform:rotate(' + a.toFixed(1) + 'deg) translateY(-190%)">' : '';
     }).join('');
     root.innerHTML = head + '<h1>La ruota</h1><p>Quello che esce si guarda. Gli spicchi più grandi sono i titoli più adatti a voi.</p>'
+      + (s.phase === 'ready' ? wheelControls() : '')
       + '<div class="wheel-wrap"><div class="wheel-pointer"></div><div class="wheel" id="wheel" style="background:' + wheelCss(s.slices) + '">' + thumbs + '</div>'
       + '<button class="wheel-hub" data-act="spin" id="spin-btn">' + (s.phase === 'spinning' ? '…' : 'Gira') + '</button></div>'
       + '<ul class="wheel-names">' + s.slices.map((sl, i) => '<li><i style="background:' + PALETTE[i % PALETTE.length] + '"></i><span>' + esc(sl.item.title) + '</span><span>' + Math.round(sl.frac * 100) + '%</span></li>').join('') + '</ul>'
@@ -790,7 +834,7 @@
 
   /* ---------- Eventi ---------- */
   const actions = {
-    go,
+    go() { go(); },
     settings() { openSheet({ type: 'settings' }); },
     close() {
       if (app.sheet && app.sheet.back) { app.sheet = app.sheet.back; renderSheet(); return; }
@@ -839,6 +883,23 @@
     },
     'tv-help'() { app.sheet = { type: 'tv', back: app.sheet }; renderSheet(); },
     spin() { if (app.sheet && app.sheet.type === 'wheel') spin(app.sheet); },
+    'wheel-ex'(v) {
+      const wp = wheelPrefs();
+      wp.exclude = wp.exclude.includes(v) ? wp.exclude.filter((x) => x !== v) : wp.exclude.concat(v);
+      S.set('wheelPrefs', wp);
+      prepareWheel(app.sheet.ctx || { usedJolly: 0 }).then(() => { const d = document.querySelector('.wheel-opts'); if (d) d.open = true; });
+    },
+    'wheel-size'(v) {
+      const wp = wheelPrefs();
+      wp.size = +v;
+      S.set('wheelPrefs', wp);
+      const s = app.sheet;
+      if (s && s.all && s.phase === 'ready') {
+        s.slices = X.wheelSlices(s.all, wp.size);
+        keepScroll(renderSheet);
+        const d = document.querySelector('.wheel-opts'); if (d) d.open = true;
+      }
+    },
     'verdict-seen'() {
       const s = app.sheet;
       const it = s.lock.item;
@@ -984,6 +1045,41 @@
     },
     'rm-watch'(_, el) { toggleList('watchlist', el.dataset.key); render(); },
     'rm-seen'(_, el) { toggleList('seen', el.dataset.key); render(); },
+    'rm-hidden'(_, el) { toggleList('hidden', el.dataset.key); render(); },
+    hide(_, el) {
+      const key = el.dataset.key;
+      const added = toggleList('hidden', key);
+      toast(added ? 'Non verrà più proposto. Lo ritrovi in Liste' : 'Di nuovo tra le proposte');
+      if (added && app.results) {
+        app.results.items = app.results.items.filter((x) => x.key !== key);
+        if (app.results.ctx) app.results.ctx.kept = app.results.ctx.kept.filter((x) => x.key !== key);
+        if (app.results.items.length === 0) app.results.hints = E.relaxHints({}, app.filters);
+        app.heroIndex = 0;
+      }
+      if (app.sheet && added && app.sheet.type === 'detail') closeSheet(); else if (app.sheet) keepScroll(renderSheet);
+      const y = window.scrollY; render(); window.scrollTo(0, y);
+    },
+    'similar-search'(_, el) {
+      const it = findItem(el.dataset.key);
+      if (!it) return;
+      app.sheet = null; renderSheet();
+      go(it);
+    },
+    sort(v) { app.sortBy = v; const y = window.scrollY; renderResults(); window.scrollTo(0, y); },
+    async more() {
+      const r = app.results;
+      const others = r.items.length - 1;
+      if (others > app.showCount) { app.showCount += 20; const y = window.scrollY; renderResults(); window.scrollTo(0, y); return; }
+      app.loadingMore = true;
+      let y = window.scrollY; renderResults(); window.scrollTo(0, y);
+      try {
+        const added = await A.more(r, app.filters);
+        if (!added) toast('Non ci sono altri titoli con questi filtri');
+        app.showCount += 20;
+      } catch (e) { toast(e.message || 'Non riesco a caricare altri titoli.'); }
+      app.loadingMore = false;
+      if (app.results === r && app.tab === 'results') { y = window.scrollY; renderResults(); window.scrollTo(0, y); }
+    },
     'rm-saved'(v) { const l = savedList(); l.splice(+v, 1); S.set('saved', l); render(); },
     'run-saved'(v) {
       const s = savedList()[+v];
@@ -1031,6 +1127,7 @@
       app.filters[el.dataset.num] = n >= 1900 && n <= 2100 ? n : null;
       app.preset = null; saveFilters();
     } else if (el.id === 'person-q') lookup(el.value, A.searchPeople, 'person-hits', 'addperson', app.filters.people);
+    else if (el.id === 'title-q') lookupTitle(el.value);
     else if (el.id === 'keyword-q') lookup(el.value, A.searchKeywords, 'keyword-hits', 'addkeyword', app.filters.keywords);
   });
   document.addEventListener('change', (ev) => {
@@ -1059,6 +1156,23 @@
     else setFilters({ [el.dataset.check]: el.checked });
     render();
   });
+  let titleTimer;
+  function lookupTitle(q) {
+    clearTimeout(titleTimer);
+    const box = $('title-hits');
+    if (q.trim().length < 2) { box.innerHTML = ''; app.titleHits = []; return; }
+    titleTimer = setTimeout(async () => {
+      try {
+        app.titleHits = await A.searchTitles(q.trim());
+        const target = $('title-hits');
+        if (!target) return;
+        target.innerHTML = app.titleHits.length ? app.titleHits.map((h) => '<button data-act="detail" data-key="' + esc(h.key) + '">'
+          + (h.poster ? '<img alt="" src="' + IMG + 'w92' + h.poster + '">' : '<span class="noimg"></span>')
+          + '<span>' + esc(h.title) + ' <span class="muted small">' + (h.kind === 'tv' ? 'Serie' : 'Film') + (h.year ? ', ' + h.year : '') + '</span></span></button>').join('')
+          : '<p class="empty-line">Nessun titolo con questo nome.</p>';
+      } catch (e) { toast(e.message || 'Ricerca non riuscita.'); }
+    }, 350);
+  }
   let lookupTimer;
   function lookup(q, fn, targetId, act, picked) {
     clearTimeout(lookupTimer);

@@ -278,6 +278,25 @@ button { background: none; border: 0; padding: 0; cursor: pointer; }
 .verdict .poster { max-width: 62%; margin: 0 auto 18px; }
 .locked { margin-top: 14px; padding: 10px 12px; border-radius: 8px; background: var(--sipario); font-size: 14px; }
 
+/* Opzioni della ruota */
+.wheel-opts { text-align: left; background: var(--sipario); border-radius: 12px; padding: 4px 12px 12px; margin-top: 16px; }
+.wheel-opts summary { list-style: none; display: grid; gap: 2px; min-height: 52px; padding: 8px 0; cursor: pointer; }
+.wheel-opts summary::-webkit-details-marker { display: none; }
+.wheel-opts summary b { font: 700 22px/1.1 var(--display); }
+.wheel-opts .seg { background: var(--velluto); }
+.wheel-opts .chip.no { background: var(--velluto); }
+.wheel-opts .chip.no[aria-pressed="true"] { background: var(--avviso); }
+
+/* Ricerca per titolo, simili, ordinamento */
+.title-search { margin-bottom: 14px; }
+.title-search .suggest:not(:empty) { margin-top: 4px; }
+.seed-note { margin-top: 16px; padding: 10px 12px; background: var(--sipario); border-radius: 10px; font-size: 15px; }
+.sort-row { display: flex; gap: 6px; overflow-x: auto; margin: 4px -16px 8px; padding: 2px 16px; scrollbar-width: none; }
+.sort-row::-webkit-scrollbar { display: none; }
+.sort-row .chip { min-height: 36px; padding: 6px 12px; font-size: 14px; }
+.more-btn { width: 100%; margin-top: 14px; }
+.seed-note .link-btn { min-height: 0; }
+
 /* Voti */
 .stars { display: flex; gap: 2px; }
 .stars button { width: 44px; height: 44px; font-size: 30px; line-height: 1; color: var(--filo); }

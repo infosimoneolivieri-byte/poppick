@@ -170,12 +170,14 @@
     return cache;
   }
 
-  async function search(f, onProgress) {
+  async function search(f, onProgress, opts) {
+    const seed = opts && opts.seed;
     const progress = onProgress || (() => {});
     const kwMap = await resolveTerms(E.neededTerms(f));
     const { kinds, notes } = E.planKinds(f, kwMap);
     const seenList = store.get('seen', []);
     const seen = new Set(seenList.map((x) => x.key));
+    const hidden = new Set(store.get('hidden', []).map((x) => x.key));
     const ratings = store.get('ratings', {});
     const profiles = profilesOf();
     const viewers = viewersOf(profiles);
@@ -188,9 +190,21 @@
     const movieFilters = available ? Object.assign({}, f, { runtimeMax: Math.min(f.runtimeMax || Infinity, available) }) : f;
     const found = new Map();
 
-    progress('Cerco tra i titoli che rispettano i vostri filtri');
+    if (seed) {
+      progress('Cerco titoli simili a ' + seed.title);
+      const paths = [['recommendations', '1'], ['recommendations', '2'], ['similar', '1'], ['similar', '2']];
+      await pool(paths, 4, async ([what, page]) => {
+        const d = await tmdb('/' + seed.kind + '/' + seed.id + '/' + what, { language: 'it-IT', page });
+        ((d && d.results) || []).forEach((r) => {
+          const it = E.normalizeRow(r, seed.kind);
+          if (it.key !== seed.key && !found.has(it.key) && E.matchesBasics(it, f)) found.set(it.key, it);
+        });
+      });
+    }
+
+    progress(seed ? 'Controllo i titoli simili' : 'Cerco tra i titoli che rispettano i vostri filtri');
     const jobs = [];
-    kinds.forEach((kind) => {
+    if (!seed) kinds.forEach((kind) => {
       if (kind === 'tv' && f.people.length) return;
       const { specs } = E.buildSpecs(f, kind, kwMap);
       specs.forEach((spec) => E.planPools(f).forEach((p) => {
@@ -209,7 +223,7 @@
       });
     });
 
-    if (kinds.includes('tv') && f.people.length) {
+    if (!seed && kinds.includes('tv') && f.people.length) {
       const lists = await pool(f.people, 4, (p) => tmdb('/person/' + p.id + '/tv_credits', { language: 'it-IT' }).then((d) => d || {}));
       E.filterTvCredits(lists, f).forEach((r) => {
         const it = E.normalizeRow(r, 'tv');
@@ -218,23 +232,37 @@
     }
 
     const all = [...found.values()];
-    const unseen = all.filter((i) => !seen.has(i.key));
-    const short = E.rank(unseen, f.weights).slice(0, ENRICH_LIMIT);
+    const unseen = all.filter((i) => !seen.has(i.key) && !hidden.has(i.key));
+    const queue = E.rank(unseen, f.weights);
+    const ctx = { kwMap, viewers, ratings, seen, tracked, available, queue: queue.slice(ENRICH_LIMIT), kept: [], funnel: {} };
 
+    const short = queue.slice(0, ENRICH_LIMIT);
     progress('Controllo piattaforme e cast di ' + short.length + ' titoli');
-    let detailed = await pool(short, 6, details);
+    await enrichInto(ctx, short, f, notes, progress);
+    const removed = all.length - unseen.length;
+    if (removed) ctx.funnel.seen = (ctx.funnel.seen || 0) + removed;
+    const ranked = E.rank(ctx.kept, f.weights);
+    return {
+      items: ranked, funnel: ctx.funnel, notes, examined: all.length, ctx,
+      seed: seed ? { key: seed.key, title: seed.title } : null,
+      hints: ranked.length ? [] : E.relaxHints(ctx.funnel, f),
+    };
+  }
+
+  /** Dettagli, gusti, voti OMDb e filtri finali per un gruppo di titoli. */
+  async function enrichInto(ctx, list, f, notes, progress) {
+    let detailed = await pool(list, 6, details);
     detailed = detailed.map((it) => {
-      const { hits, possible } = E.styleHits(it, f, kwMap);
+      const { hits, possible } = E.styleHits(it, f, ctx.kwMap);
       return Object.assign({}, it, {
         styleHits: hits, stylePossible: possible,
         styleBonus: (f.genreMode === 'any' && hits.length > 1 ? (hits.length - 1) * 5 : 0)
           + (f.beyondSubs && (E.accessOf(it, f) || {}).kind === 'mine' ? 8 : 0),
-      }, tasteFor(it, viewers, ratings));
+      }, tasteFor(it, ctx.viewers, ctx.ratings));
     });
-
     const omdbKey = (keys().omdb || '').trim();
     if (omdbKey) {
-      progress('Confronto i voti della critica');
+      if (progress) progress('Confronto i voti della critica');
       const state = { stop: null };
       detailed = await pool(detailed, 5, async (it) => {
         if (!it.imdbId) return it;
@@ -242,18 +270,41 @@
         return v ? Object.assign({}, it, v) : it;
       });
       store.set('omdb', omdbStore());
-      if (state.stop === 'key') notes.push('OMDb ha rifiutato la chiave: la classifica non usa IMDb e critica. Controllala nelle impostazioni.');
-      if (state.stop === 'limit') notes.push('Avete esaurito le richieste OMDb di oggi: alcuni titoli non hanno i voti di IMDb e critica.');
-      if (state.stop === 'network') notes.push('OMDb non risponde: alcuni titoli non hanno i voti di IMDb e critica.');
-    } else if (f.minCritic) {
+      const add = (n) => { if (!notes.includes(n)) notes.push(n); };
+      if (state.stop === 'key') add('OMDb ha rifiutato la chiave: la classifica non usa IMDb e critica. Controllala nelle impostazioni.');
+      if (state.stop === 'limit') add('Avete esaurito le richieste OMDb di oggi: alcuni titoli non hanno i voti di IMDb e critica.');
+      if (state.stop === 'network') add('OMDb non risponde: alcuni titoli non hanno i voti di IMDb e critica.');
+    } else if (f.minCritic && !notes.some((n) => n.startsWith('Il minimo della critica'))) {
       notes.push('Il minimo della critica richiede la chiave OMDb: aggiungila nelle impostazioni.');
     }
+    const { kept, funnel } = E.finalFilter(detailed, f, { seen: ctx.seen, tracked: ctx.tracked, available: ctx.available });
+    Object.entries(funnel).forEach(([k, n]) => { ctx.funnel[k] = (ctx.funnel[k] || 0) + n; });
+    ctx.kept = ctx.kept.concat(kept);
+  }
 
-    const { kept, funnel } = E.finalFilter(detailed, f, { seen, tracked, available });
-    const seenCount = all.length - unseen.length;
-    if (seenCount) funnel.seen = (funnel.seen || 0) + seenCount;
-    const ranked = E.rank(kept, f.weights).slice(0, 20);
-    return { items: ranked, funnel, notes, examined: all.length, hints: ranked.length ? [] : E.relaxHints(funnel, f) };
+  /** Continua la stessa ricerca con i titoli successivi in classifica. */
+  async function more(result, f) {
+    const ctx = result.ctx;
+    const drop = new Set(store.get('seen', []).concat(store.get('hidden', [])).map((x) => x.key));
+    let added = 0;
+    while (ctx.queue.length && added < 10) {
+      const before = ctx.kept.length;
+      const batch = ctx.queue.splice(0, 24);
+      await enrichInto(ctx, batch, f, result.notes);
+      added += ctx.kept.length - before;
+    }
+    ctx.kept = ctx.kept.filter((x) => !drop.has(x.key));
+    result.items = E.rank(ctx.kept, f.weights);
+    return added;
+  }
+
+  /** Cerca un film o una serie per nome. */
+  async function searchTitles(q) {
+    const d = await tmdb('/search/multi', { query: q, language: 'it-IT', include_adult: 'false' });
+    return ((d && d.results) || [])
+      .filter((r) => r.media_type === 'movie' || r.media_type === 'tv')
+      .slice(0, 8)
+      .map((r) => E.normalizeRow(r, r.media_type));
   }
 
   /** Carica un singolo titolo, per esempio dalle liste o dai titoli simili. */
@@ -446,5 +497,5 @@
     return result;
   }
 
-  root.Api = { storedKeys, hasSharedTmdb, http, profilesOf, viewersOf, tasteFor, spoilerFree, saveRating, importHistory, teachBatch, refreshTracked, details, store, UserError, search, loadTitle, similar, providersIT, searchPeople, searchKeywords, interpret, testKeys, keys };
+  root.Api = { more, searchTitles, storedKeys, hasSharedTmdb, http, profilesOf, viewersOf, tasteFor, spoilerFree, saveRating, importHistory, teachBatch, refreshTracked, details, store, UserError, search, loadTitle, similar, providersIT, searchPeople, searchKeywords, interpret, testKeys, keys };
 })(window);

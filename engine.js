@@ -389,6 +389,47 @@
     });
   }
 
+  /**
+   * Filtri di base applicati qui, per i titoli che non arrivano da /discover
+   * (per esempio i simili a un film): generi, anni, lingua e numero di voti.
+   */
+  function matchesBasics(it, f) {
+    const g = it.genreIds || [];
+    const inc = genreIds(f.genres || [], it.kind).ids;
+    const exc = genreIds(f.excludeGenres || [], it.kind).ids;
+    if (inc.length) {
+      const ok = f.genreMode === 'all' ? inc.every((x) => g.includes(x)) : inc.some((x) => g.includes(x));
+      if (!ok) return false;
+    }
+    if (exc.some((x) => g.includes(x))) return false;
+    if (f.yearFrom && !(it.year >= f.yearFrom)) return false;
+    if (f.yearTo && !(it.year <= f.yearTo)) return false;
+    if (f.language && it.lang && it.lang !== f.language) return false;
+    if (f.minVotes && (it.tmdbVotes || 0) < Math.min(f.minVotes, 50)) return false;
+    if (f.maxVotes && it.tmdbVotes > f.maxVotes) return false;
+    if (f.type !== 'both' && it.kind !== f.type) return false;
+    return true;
+  }
+
+  /** Ordina una lista di proposte secondo la scelta dell'utente; i titoli senza dato vanno in fondo. */
+  function sortItems(items, by) {
+    const val = {
+      critic: (i) => criticRaw(i),
+      audience: (i) => audienceRaw(i),
+      year: (i) => i.year || null,
+      runtime: (i) => (i.runtime ? -i.runtime : null),
+    }[by];
+    if (!val) return items.slice();
+    return items.slice().sort((a, b) => {
+      const va = val(a);
+      const vb = val(b);
+      if (va == null && vb == null) return b.match - a.match;
+      if (va == null) return 1;
+      if (vb == null) return -1;
+      return vb - va || b.match - a.match;
+    });
+  }
+
   /** Riga di /discover o /credits ridotta ai campi che servono. */
   function normalizeRow(r, kind) {
     const date = (kind === 'movie' ? r.release_date : r.first_air_date) || '';
@@ -399,6 +440,7 @@
       overview: r.overview || '', poster: r.poster_path || null,
       tmdbVote: r.vote_average || 0, tmdbVotes: r.vote_count || 0,
       genreIds: r.genre_ids || [],
+      lang: r.original_language || '',
     };
   }
 
@@ -789,7 +831,7 @@
   }
 
   const api = {
-    accessOf, availableMinutes, certOf, warningsOf, paceOf, GENRES, STYLE_GROUPS, STYLES, neededTerms, buildSpecs, styleHits, pickTrailer, trailerSearchUrl, LANGUAGES, COUNTRIES, CRITERIA, PRESETS, AI_SYSTEM,
+    matchesBasics, sortItems, accessOf, availableMinutes, certOf, warningsOf, paceOf, GENRES, STYLE_GROUPS, STYLES, neededTerms, buildSpecs, styleHits, pickTrailer, trailerSearchUrl, LANGUAGES, COUNTRIES, CRITERIA, PRESETS, AI_SYSTEM,
     defaultFilters, applyPreset, genreIds, planKinds, buildDiscover, planPools, poolSort,
     filterTvCredits, normalizeRow, mergeDetails, parseOmdb, audienceRaw, audienceRanked, criticRaw, fame,
     rank, finalFilter, offersOf, watchUrl, reasons, fmtRuntime, relaxHints, normalizeAI, extractJson,
