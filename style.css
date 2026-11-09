@@ -376,7 +376,10 @@ button { background: none; border: 0; padding: 0; cursor: pointer; }
   box-shadow: 0 -1px 0 var(--filo);
 }
 .sheet.enter { animation: rise .22s ease-out; }
-.sheet.full { top: 0; border-radius: 0; padding-top: calc(8px + var(--safe-t)); }
+.sheet.full { top: 0; border-radius: 0; padding-top: 0; }
+/* Nelle schede a tutto schermo l'intestazione copre anche lo spazio della barra di stato:
+   scorrendo, il contenuto non deve comparire sopra la X. */
+.sheet.full .sheet-head { top: 0; padding-top: calc(8px + var(--safe-t)); }
 @keyframes rise { from { transform: translateY(32px); opacity: .4; } }
 .sheet-head { position: sticky; top: -8px; display: flex; justify-content: flex-end; background: var(--velluto); z-index: 2; margin: 0 -8px; }
 .close { width: 44px; height: 44px; font-size: 28px; line-height: 1; color: var(--polvere); }
