@@ -675,12 +675,18 @@
     await prepareWheel(c && c.night === X.nightId() ? c : { usedJolly: 0 });
   }
   // Esclusioni solo per la ruota, su questo telefono: non toccano i filtri della ricerca.
-  const wheelPrefs = () => Object.assign({ exclude: [], size: 8 }, S.get('wheelPrefs', {}));
+  const wheelPrefs = () => Object.assign({ exclude: [], size: 8, type: 'both' }, S.get('wheelPrefs', {}));
+  /*
+   * La ruota non usa i filtri di Cerca: parte da zero, tiene solo piattaforme e opzioni di streaming,
+   * il tipo scelto qui e i generi esclusi.
+   */
   function wheelFilters() {
     const wp = wheelPrefs();
-    const f = JSON.parse(JSON.stringify(app.filters));
-    f.excludeGenres = [...new Set((f.excludeGenres || []).concat(wp.exclude))];
-    f.genres = (f.genres || []).filter((g) => !wp.exclude.includes(g));
+    const f = E.defaultFilters();
+    ['providers', 'includePaid', 'onlyAvailable', 'beyondSubs', 'onlyFree'].forEach((k) => { f[k] = JSON.parse(JSON.stringify(app.filters[k])); });
+    f.type = wp.type || 'both';
+    f.excludeGenres = wp.exclude.slice();
+    f.minAudience = 65;
     return f;
   }
   function excludedIds() {
@@ -717,20 +723,22 @@
   function wheelControls() {
     const wp = wheelPrefs();
     const label = (g) => (g.k === 'animazione' ? 'Animazione e cartoni' : g.n);
-    return '<details class="wheel-opts"><summary><b>Stasera escludi</b><span class="muted small">'
+    const subs = app.filters.providers.length;
+    return '<details class="wheel-opts" open><summary><b>Stasera escludi</b><span class="muted small">'
       + (wp.exclude.length ? esc(wp.exclude.map((k) => label(E.GENRES.find((g) => g.k === k))).join(', ')) : 'Nessun genere escluso') + '</span></summary>'
+      + seg('wheel-type', [['both', 'Film e serie'], ['movie', 'Solo film'], ['tv', 'Solo serie']], wp.type)
+      + '<span class="field-label" style="margin-top:14px">Tocca i generi da togliere</span>'
       + '<div class="chips">' + E.GENRES.map((g) => chip('wheel-ex', g.k, label(g), wp.exclude.includes(g.k), 'no')).join('') + '</div>'
       + '<span class="field-label" style="margin-top:14px">Quanti titoli sulla ruota</span>' + seg('wheel-size', [['4', '4'], ['6', '6'], ['8', '8']], String(wp.size))
-      + '<p class="small muted" style="margin-top:8px">Valgono solo per la ruota e restano salvati su questo telefono.</p></details>';
+      + '<p class="small muted" style="margin-top:8px">La ruota sceglie tra i titoli più apprezzati' + (subs ? ' sulle vostre piattaforme' : ' in streaming') + ', senza usare i filtri di Cerca. Queste scelte restano salvate su questo telefono.</p></details>';
   }
   function drawWheel(root, s) {
     const head = '<div class="sheet full wheel-page" role="dialog" aria-modal="true" aria-label="Scegli per me"><div class="sheet-head"><button class="close" data-act="close" aria-label="Chiudi">×</button></div>';
     if (s.phase === 'loading') { root.innerHTML = head + '<h1>La ruota</h1><p aria-live="polite">' + esc(s.msg) + '</p><div class="loading-line"><i></i></div></div>'; return; }
     if (s.phase === 'error') { root.innerHTML = head + '<h1>Ruota ferma</h1><p>' + esc(s.msg) + '</p></div>'; return; }
     if (s.phase === 'empty') {
-      root.innerHTML = head + '<h1>Troppo pochi titoli</h1><p>Per girare servono almeno due titoli che rispettano i filtri.</p>' + wheelControls()
-        + (s.notes || []).map((n) => '<p class="note">' + esc(n) + '</p>').join('')
-        + '<button class="btn" style="width:100%;margin-top:16px" data-act="close">Modifica i filtri</button></div>';
+      root.innerHTML = head + '<h1>Troppo pochi titoli</h1><p>Per girare servono almeno due titoli. Togli qualche genere escluso.</p>' + wheelControls()
+        + (s.notes || []).map((n) => '<p class="note">' + esc(n) + '</p>').join('') + '</div>';
       return;
     }
     if (s.phase === 'verdict') {
@@ -955,6 +963,12 @@
       wp.exclude = wp.exclude.includes(v) ? wp.exclude.filter((x) => x !== v) : wp.exclude.concat(v);
       S.set('wheelPrefs', wp);
       prepareWheel(app.sheet.ctx || { usedJolly: 0 }).then(() => { const d = document.querySelector('.wheel-opts'); if (d) d.open = true; });
+    },
+    'wheel-type'(v) {
+      const wp = wheelPrefs();
+      wp.type = v;
+      S.set('wheelPrefs', wp);
+      prepareWheel(app.sheet.ctx || { usedJolly: 0 });
     },
     'wheel-size'(v) {
       const wp = wheelPrefs();
