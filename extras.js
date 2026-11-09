@@ -250,7 +250,7 @@
   }
 
   /* ---------- Backup ---------- */
-  const BACKUP_KEYS = ['seen', 'hidden', 'watchlist', 'saved', 'ratings', 'tracked', 'profiles', 'filters', 'prefs'];
+  const BACKUP_KEYS = ['seen', 'hidden', 'alerts', 'watchlist', 'saved', 'ratings', 'tracked', 'profiles', 'filters', 'prefs'];
 
   function byKeyUnion(a, b) {
     const m = new Map();
@@ -287,6 +287,7 @@
     return {
       seen: byKeyUnion(local.seen, incoming.seen),
       hidden: byKeyUnion(local.hidden, incoming.hidden),
+      alerts: byKeyUnion(local.alerts, incoming.alerts),
       watchlist: byKeyUnion(local.watchlist, incoming.watchlist),
       saved,
       ratings: mergeRatings(local.ratings, incoming.ratings),
@@ -300,7 +301,7 @@
 
   /* ---------- Sincronizzazione ---------- */
   const SYNC_PARTS = {
-    lists: ['seen', 'hidden', 'watchlist', 'saved', 'tracked', 'profiles', 'prefs', 'wheelLock', 'wheelCtx'],
+    lists: ['seen', 'hidden', 'alerts', 'watchlist', 'saved', 'tracked', 'profiles', 'prefs', 'wheelLock', 'wheelCtx'],
     ratings: ['ratings'],
     keys: ['keys'],
   };
@@ -384,7 +385,7 @@
     const first = !base;
     const b = base || {};
     const out = {};
-    [['seen', 'key'], ['hidden', 'key'], ['watchlist', 'key'], ['tracked', 'key'], ['saved', 'name']].forEach(([k, id]) => {
+    [['seen', 'key'], ['hidden', 'key'], ['alerts', 'key'], ['watchlist', 'key'], ['tracked', 'key'], ['saved', 'name']].forEach(([k, id]) => {
       if (local[k] !== undefined || remote[k] !== undefined) out[k] = mergeKeyed(b[k], local[k], remote[k], id);
     });
     if (local.ratings !== undefined || remote.ratings !== undefined) out.ratings = mergeRatings3(b.ratings, local.ratings, remote.ratings);

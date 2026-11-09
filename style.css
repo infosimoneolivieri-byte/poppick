@@ -166,7 +166,7 @@ button { background: none; border: 0; padding: 0; cursor: pointer; }
 }
 .cta:disabled { opacity: .7; }
 
-#tabs { position: fixed; left: 0; right: 0; bottom: 0; height: var(--tabs); padding-bottom: var(--safe-b); background: var(--sipario); display: grid; grid-template-columns: repeat(3, 1fr); z-index: 6; }
+#tabs { position: fixed; left: 0; right: 0; bottom: 0; height: var(--tabs); padding-bottom: var(--safe-b); background: var(--sipario); display: grid; grid-template-columns: repeat(4, 1fr); z-index: 6; }
 #tabs button { font-size: 14px; color: var(--polvere); display: grid; place-items: center; align-content: center; gap: 2px; }
 #tabs svg { width: 22px; height: 22px; }
 #tabs button[aria-current="page"] { color: var(--ottone); font-weight: 600; }
@@ -296,6 +296,15 @@ button { background: none; border: 0; padding: 0; cursor: pointer; }
 .sort-row .chip { min-height: 36px; padding: 6px 12px; font-size: 14px; }
 .more-btn { width: 100%; margin-top: 14px; }
 .seed-note .link-btn { min-height: 0; }
+
+/* Avvisi e Novità */
+.alert-btn { width: 100%; margin-bottom: 8px; border-color: var(--ottone); color: var(--ottone); }
+.alert-btn[aria-pressed="true"] { background: var(--sipario-2); }
+.alert-on { color: var(--menta); font-weight: 600; margin-bottom: 8px; }
+.alert-state { display: block; font-size: 13px; color: var(--polvere); }
+.news-strip { margin-top: 12px; margin-bottom: 8px; }
+.news-explain { margin: 4px 0 6px; }
+.news-row { grid-template-columns: 62px 1fr; }
 
 /* Voti */
 .stars { display: flex; gap: 2px; }

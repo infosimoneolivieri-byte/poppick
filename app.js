@@ -21,6 +21,7 @@
     providers: null,
     openGroups: new Set(['stili']),
     results: null, heroIndex: 0, loading: null, error: null, reveal: false,
+    news: { mode: 'stream', kind: 'movie', provider: 0, page: 0, pages: 1, items: [], loading: false, error: null },
     sheet: null, wheel: null, showCount: 20, sortBy: 'match', titleHits: [],
     personHits: [], keywordHits: [],
   };
@@ -28,6 +29,7 @@
   const seenList = () => S.get('seen', []);
   const watchList = () => S.get('watchlist', []);
   const hiddenList = () => S.get('hidden', []);
+  const alertList = () => S.get('alerts', []);
   const savedList = () => S.get('saved', []);
   const slim = (it) => ({ key: it.key, id: it.id, kind: it.kind, title: it.title, year: it.year, date: it.date, poster: it.poster, tmdbVote: it.tmdbVote, tmdbVotes: it.tmdbVotes, overview: it.overview, genreIds: it.genreIds || [] });
   const inList = (list, key) => list.some((x) => x.key === key);
@@ -53,6 +55,7 @@
   const icon = {
     search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="2.2" fill="var(--sipario)"/><circle cx="16" cy="12" r="2.2" fill="var(--sipario)"/><circle cx="7" cy="17" r="2.2" fill="var(--sipario)"/></svg>',
     star: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10 9l5 3-5 3z" fill="currentColor"/></svg>',
+    news: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3l2.4 5.2 5.6.6-4.2 3.8 1.2 5.6L12 15.4 7 18.2l1.2-5.6L4 8.8l5.6-.6z"/></svg>',
     list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg>',
     gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9L7 7M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>',
   };
@@ -78,6 +81,16 @@
     if (it.kind === 'tv' && it.seasons) bits.push(it.seasons === 1 ? '1 stagione' : it.seasons + ' stagioni');
     return bits.join(', ');
   }
+  function alertHtml(it) {
+    if (!('providers' in it)) return '';
+    const subs = app.filters.providers;
+    const a = alertList().find((x) => x.key === it.key);
+    if (a && a.foundOn) return '<p class="alert-on">È arrivato su ' + esc(a.foundOn) + '.</p>';
+    if (E.firstStreamingOffer(it.providers, subs)) return '';
+    const where = subs.length ? 'sulle vostre piattaforme' : 'in streaming';
+    return '<button class="btn alert-btn" data-act="alert" data-key="' + esc(it.key) + '" aria-pressed="' + !!a + '">'
+      + (a ? 'Ti avviserò quando arriva ' + where : 'Avvisami quando arriva ' + where) + '</button>';
+  }
   function offersHtml(it) {
     const f = app.filters;
     const offers = E.offersOf(it, true);
@@ -85,8 +98,9 @@
     const rest = offers.filter((o) => !f.providers.includes(o.provider_id));
     const ordered = mine.concat(rest).slice(0, 5);
     const link = it.providers && it.providers.link;
-    if (!ordered.length) return '<p class="none-note">In Italia non risulta su nessuna piattaforma in questo momento.</p>';
-    return ordered.map((o, i) => {
+    const alert = alertHtml(it);
+    if (!ordered.length) return '<p class="none-note">In Italia non risulta su nessuna piattaforma in questo momento.</p>' + alert;
+    return alert + ordered.map((o, i) => {
       const url = E.watchUrl(o.provider_name, it.title, link);
       return '<button class="offer ' + (i === 0 ? '' : 'alt') + '" data-act="open" data-url="' + esc(url) + '">'
         + '<img alt="" src="' + IMG + 'w92' + o.logo_path + '">'
@@ -328,11 +342,57 @@
     }
   }
 
+  /* ---------- Novità ---------- */
+  function newsProviders() {
+    const all = app.providers || [];
+    const mine = all.filter((p) => app.filters.providers.includes(p.id));
+    const rest = all.filter((p) => !app.filters.providers.includes(p.id)).slice(0, Math.max(0, 8 - mine.length));
+    return mine.concat(rest);
+  }
+  function renderNews() {
+    $('cta-slot').innerHTML = '';
+    const n = app.news;
+    if (!n.page && !n.loading && !n.error) { loadNews(true); return; }
+    const drop = new Set(seenList().concat(hiddenList()).map((x) => x.key));
+    const items = n.items.filter((x) => !drop.has(x.key));
+    const subs = app.filters.providers;
+    const explain = n.mode === 'cinema' ? 'Film in programmazione nei cinema italiani.'
+      : n.kind === 'movie' ? 'Film usciti negli ultimi sei mesi e già disponibili ' + (n.provider || !subs.length ? 'in streaming' : 'sulle vostre piattaforme') + ', i più seguiti per primi. TMDB non indica il giorno di arrivo sulla piattaforma.'
+        : 'Serie con episodi usciti nelle ultime settimane, disponibili ' + (n.provider || !subs.length ? 'in streaming' : 'sulle vostre piattaforme') + '.';
+    $('screen').innerHTML = '<h1 class="page-title">Novità</h1>'
+      + seg('news-mode', [['stream', 'In streaming'], ['cinema', 'Al cinema']], n.mode)
+      + (n.mode === 'stream' ? '<div style="margin-top:10px">' + seg('news-kind', [['movie', 'Film'], ['tv', 'Serie']], n.kind) + '</div>'
+        + '<div class="strip news-strip">' + chip('news-prov', 0, subs.length ? 'Le mie piattaforme' : 'Tutte', !n.provider)
+        + newsProviders().map((p) => chip('news-prov', p.id, p.name, n.provider === p.id)).join('') + '</div>' : '')
+      + '<p class="small muted news-explain">' + explain + '</p>'
+      + (n.error ? '<p class="note">' + esc(n.error) + '</p>' : '')
+      + (items.length ? items.map((it) => '<button class="row news-row" data-act="detail" data-key="' + esc(it.key) + '">' + poster(it, 'w185')
+          + '<span><h3>' + esc(it.title) + '</h3><div class="meta">' + esc((it.kind === 'tv' ? 'Serie' : 'Film') + (it.date ? ', ' + (n.mode === 'cinema' || it.kind === 'movie' ? 'uscito il ' : 'dal ') + it.date.split('-').reverse().join('/') : ''))
+          + (it.tmdbVotes >= 20 ? ', voto ' + (Math.round(it.tmdbVote * 10) / 10).toLocaleString('it-IT') : '') + '</div></span></button>').join('')
+        : n.loading ? '' : '<p class="empty-line">Nessuna novità con questa scelta.</p>')
+      + (n.loading ? '<div class="loading-line"><i></i></div>' : n.page < n.pages && items.length ? '<button class="btn more-btn" data-act="news-more">Mostrane altri</button>' : '');
+  }
+  async function loadNews(reset) {
+    const n = app.news;
+    if (n.loading) return;
+    if (reset) { n.page = 0; n.items = []; n.pages = 1; }
+    n.loading = true; n.error = null;
+    if (app.tab === 'news') renderNews();
+    try {
+      const r = await A.news({ cinema: n.mode === 'cinema', kind: n.kind, provider: n.provider, providers: app.filters.providers, page: n.page + 1 });
+      const known = new Set(n.items.map((x) => x.key));
+      n.items = n.items.concat(r.items.filter((x) => !known.has(x.key)));
+      n.page += 1; n.pages = r.pages;
+    } catch (e) { n.error = e instanceof A.UserError ? e.message : 'Non riesco a caricare le novità. Riprova.'; n.page = n.page || 1; }
+    n.loading = false;
+    if (app.tab === 'news') { const y = window.scrollY; renderNews(); window.scrollTo(0, y); }
+  }
+
   /* ---------- Liste ---------- */
   function listRows(list, kind) {
-    const empty = { watch: 'I titoli salvati per dopo compaiono qui.', seen: 'I titoli segnati come già visti non verranno più proposti.', hidden: 'I titoli che non vi interessano compaiono qui. Toglili per vederli di nuovo nelle proposte.' };
+    const empty = { watch: 'I titoli salvati per dopo compaiono qui.', seen: 'I titoli segnati come già visti non verranno più proposti.', hidden: 'I titoli che non vi interessano compaiono qui. Toglili per vederli di nuovo nelle proposte.', alerts: 'Su un titolo non ancora in streaming tocca "Avvisami quando arriva".' };
     if (!list.length) return '<p class="empty-line">' + empty[kind] + '</p>';
-    return list.map((it) => '<div class="saved"><button class="with-thumb" data-act="detail-ref" data-list="' + kind + '" data-key="' + esc(it.key) + '">' + poster(it, 'w185') + '<span>' + esc(it.title) + (it.year ? ' <span class="muted small">' + it.year + '</span>' : '') + '</span></button>'
+    return list.map((it) => '<div class="saved"><button class="with-thumb" data-act="detail-ref" data-list="' + kind + '" data-key="' + esc(it.key) + '">' + poster(it, 'w185') + '<span>' + esc(it.title) + (it.year ? ' <span class="muted small">' + it.year + '</span>' : '') + (kind === 'alerts' ? '<small class="alert-state">' + (it.foundOn ? 'Arrivato su ' + esc(it.foundOn) : 'In attesa') + '</small>' : '') + '</span></button>'
       + '<button class="del" data-act="rm-' + kind + '" data-key="' + esc(it.key) + '" aria-label="Togli ' + esc(it.title) + ' dalla lista">×</button></div>').join('');
   }
   function renderLists() {
@@ -345,6 +405,7 @@
       + '<h2 class="list-title">Da vedere</h2>' + listRows(watchList(), 'watch')
       + '<h2 class="list-title">Ricerche salvate</h2>'
       + (saved.length ? saved.map((s, i) => '<div class="saved"><button data-act="run-saved" data-val="' + i + '">' + esc(s.name) + '</button><button class="del" data-act="rm-saved" data-val="' + i + '" aria-label="Elimina ' + esc(s.name) + '">×</button></div>').join('') : '<p class="empty-line">Salva una combinazione di filtri per ritrovarla con un tocco.</p>')
+      + '<h2 class="list-title">Avvisi</h2>' + listRows(alertList(), 'alerts')
       + '<h2 class="list-title">Già visti</h2>' + listRows(seenList(), 'seen')
       + '<h2 class="list-title">Non vi interessano</h2>' + listRows(hiddenList(), 'hidden');
   }
@@ -491,7 +552,7 @@
   }
 
   function findItem(key) {
-    const pools = [app.titleHits || [], (app.sheet && app.sheet.slices ? app.sheet.slices.map((x) => x.item) : []), hiddenList(), (app.sheet && app.sheet.lock ? [app.sheet.lock.item] : []), (app.sheet && app.sheet.queue) || [], (app.results && app.results.items) || [], (app.sheet && app.sheet.similar) || [], (app.sheet && app.sheet.item ? [app.sheet.item] : []), watchList(), seenList()];
+    const pools = [app.titleHits || [], app.news.items, alertList(), (app.sheet && app.sheet.slices ? app.sheet.slices.map((x) => x.item) : []), hiddenList(), (app.sheet && app.sheet.lock ? [app.sheet.lock.item] : []), (app.sheet && app.sheet.queue) || [], (app.results && app.results.items) || [], (app.sheet && app.sheet.similar) || [], (app.sheet && app.sheet.item ? [app.sheet.item] : []), watchList(), seenList()];
     for (const p of pools) { const hit = p.find((x) => x.key === key); if (hit) return hit; }
     return null;
   }
@@ -543,6 +604,11 @@
         + (st.caughtUp || t.finished ? '' : '<button class="btn" data-act="ep-next" data-key="' + esc(t.key) + '">Visto</button>') + '</div>');
     });
     if (onlyTracked) return out.join('');
+    alertList().filter((a) => a.foundOn && !a.seenFound).forEach((a) => {
+      out.unshift('<div class="banner">' + poster(a, 'w92')
+        + '<button class="banner-main" data-act="detail-alert" data-key="' + esc(a.key) + '"><b>' + esc(a.title) + '</b><small class="new">È arrivato su ' + esc(a.foundOn) + '</small></button>'
+        + '<button class="btn" data-act="alert-ok" data-key="' + esc(a.key) + '">Ok</button></div>');
+    });
     const pending = pendingVerdict();
     if (pending) {
       out.unshift('<div class="banner">' + poster(pending.item, 'w92')
@@ -767,7 +833,7 @@
       + '<div class="setting"><h3>La ruota</h3><span class="field-label">Jolly per sera: quante volte potete rifiutare il titolo uscito</span>' + seg('jolly', [['0', 'Nessuno'], ['1', '1'], ['2', '2']], String(jollyMax())) + '</div>'
       + '<div class="setting"><h3>Niente spoiler</h3><label class="switch"><span>Nascondi la trama finché non la apro</span><input type="checkbox" data-pref="hidePlot" ' + (prefs.hidePlot ? 'checked' : '') + '></label></div>'
       + '<div class="setting"><h3>Notifiche</h3>' + (canNotify ? '' : '<p>Disponibili solo nell\'app installata.</p>')
-      + '<label class="switch"><span>Un titolo salvato arriva sulle vostre piattaforme</span><input type="checkbox" data-pref="notifyList" ' + (prefs.notifyList ? 'checked' : '') + '></label>'
+      + '<label class="switch"><span>Un titolo salvato o con avviso arriva sulle vostre piattaforme</span><input type="checkbox" data-pref="notifyList" ' + (prefs.notifyList ? 'checked' : '') + '></label>'
       + '<label class="switch"><span>Nuova stagione di una serie che seguite</span><input type="checkbox" data-pref="notifySeries" ' + (prefs.notifySeries ? 'checked' : '') + '></label>'
       + '<label class="switch"><span>Il venerdì sera, promemoria per girare la ruota</span><input type="checkbox" data-pref="notifyFriday" ' + (prefs.notifyFriday ? 'checked' : '') + '></label></div>'
       + '<div class="setting"><h3>Importa ciò che avete già visto</h3><p>File CSV di Netflix (cronologia), Letterboxd (ratings o watched) o IMDb (ratings). I voti vanno nel profilo scelto.</p>'
@@ -826,6 +892,7 @@
     const payload = JSON.stringify({
       tmdb: (A.keys().tmdb || '').trim(), providers: app.filters.providers,
       watchlist: watchList().slice(0, 60).map((x) => ({ key: x.key, id: x.id, kind: x.kind, title: x.title })),
+      alerts: alertList().filter((a) => !a.foundOn).slice(0, 60).map((a) => ({ key: a.key, id: a.id, kind: a.kind, title: a.title })),
       tracked: trackedList().filter((t) => t.lastAired).map((t) => ({ key: t.key, id: t.id, title: t.title, season: (t.lastAired && t.lastAired.season) || t.season })),
       notifyList: !!prefs.notifyList, notifySeries: !!prefs.notifySeries, notifyFriday: !!prefs.notifyFriday,
     });
@@ -1046,6 +1113,25 @@
     'rm-watch'(_, el) { toggleList('watchlist', el.dataset.key); render(); },
     'rm-seen'(_, el) { toggleList('seen', el.dataset.key); render(); },
     'rm-hidden'(_, el) { toggleList('hidden', el.dataset.key); render(); },
+    'rm-alerts'(_, el) { toggleList('alerts', el.dataset.key); render(); },
+    alert(_, el) {
+      const added = toggleList('alerts', el.dataset.key);
+      if (added) {
+        toast(window.Android ? 'Ti arriverà una notifica quando è disponibile' : 'Lo vedrai qui quando apri l\'app');
+        if (window.Android && window.Android.requestNotifications) window.Android.requestNotifications();
+      } else toast('Avviso tolto');
+      if (app.sheet) keepScroll(renderSheet);
+      const y = window.scrollY; render(); window.scrollTo(0, y);
+    },
+    'alert-ok'(_, el) {
+      S.set('alerts', alertList().filter((a) => a.key !== el.dataset.key));
+      const y = window.scrollY; render(); window.scrollTo(0, y);
+    },
+    'detail-alert'(_, el) { const a = alertList().find((x) => x.key === el.dataset.key); if (a) showDetail(Object.assign({ overview: '', tmdbVote: 0, tmdbVotes: 0 }, a)); },
+    'news-mode'(v) { app.news.mode = v; app.news.provider = 0; loadNews(true); },
+    'news-kind'(v) { app.news.kind = v; loadNews(true); },
+    'news-prov'(v) { app.news.provider = +v; loadNews(true); },
+    'news-more'() { loadNews(false); },
     hide(_, el) {
       const key = el.dataset.key;
       const added = toggleList('hidden', key);
@@ -1249,7 +1335,7 @@
   }
 
   function renderTabs() {
-    const tabs = [['search', 'Cerca', icon.search], ['results', 'Proposte', icon.star], ['lists', 'Liste', icon.list]];
+    const tabs = [['search', 'Cerca', icon.search], ['results', 'Proposte', icon.star], ['news', 'Novità', icon.news], ['lists', 'Liste', icon.list]];
     $('tabs').innerHTML = tabs.map(([k, l, ic]) => '<button data-act="tab" data-val="' + k + '"' + (app.tab === k ? ' aria-current="page"' : '') + '>' + ic + '<span>' + l + '</span></button>').join('');
   }
   function render() {
@@ -1257,6 +1343,7 @@
     renderTabs();
     if (app.tab === 'search') { renderSearch(); window.scrollTo(0, y); }
     else if (app.tab === 'results') renderResults();
+    else if (app.tab === 'news') renderNews();
     else renderLists();
     syncBackground();
   }
@@ -1264,7 +1351,17 @@
   render();
   loadProviders();
   // Sincronizza all'apertura, al ritorno nell'app e ogni minuto mentre è aperta.
-  window.onAppResume = () => { Y.syncNow().catch(() => {}); };
+  async function runAlertCheck(force) {
+    try {
+      const found = await A.checkAlerts(app.filters.providers, force);
+      if (found.length) {
+        toast(found.length === 1 ? found[0].title + ' è arrivato su ' + found[0].foundOn : found.length + ' titoli con avviso sono arrivati in streaming');
+        if (!app.sheet && app.tab !== 'results') { const y = window.scrollY; render(); window.scrollTo(0, y); }
+      }
+    } catch (e) { /* si riprova al prossimo avvio */ }
+  }
+  setTimeout(() => runAlertCheck(false), 1500);
+  window.onAppResume = () => { Y.syncNow().catch(() => {}); runAlertCheck(false); };
   window.onAppPause = () => { Y.syncNow().catch(() => {}); };
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') window.onAppResume(); else window.onAppPause(); });
   if (Y.session()) window.onAppResume();

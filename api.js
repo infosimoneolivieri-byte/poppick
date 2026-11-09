@@ -298,6 +298,53 @@
     return added;
   }
 
+  /** Controlla se i titoli con avviso sono arrivati in streaming. Restituisce quelli appena arrivati. */
+  async function checkAlerts(providers, force) {
+    const list = store.get('alerts', []);
+    if (!list.some((a) => !a.foundOn)) return [];
+    if (!force && Date.now() - store.get('alertsAt', 0) < 3 * 3600 * 1000) return [];
+    const found = [];
+    const out = await pool(list, 4, async (a) => {
+      if (a.foundOn) return a;
+      const d = await tmdb('/' + a.kind + '/' + a.id + '/watch/providers', {});
+      const hit = E.firstStreamingOffer(d && d.results && d.results.IT, providers);
+      if (!hit) return a;
+      const done = Object.assign({}, a, { foundOn: hit.provider_name, foundAt: Date.now() });
+      found.push(done);
+      return done;
+    });
+    store.set('alertsAt', Date.now());
+    if (found.length) {
+      // Rilegge la lista: nel frattempo può essere cambiata.
+      const current = store.get('alerts', []);
+      store.set('alerts', current.map((a) => out.find((x) => x.key === a.key && x.foundOn && !a.foundOn) || a));
+    }
+    return found;
+  }
+
+  /** Novità: film usciti di recente o serie con episodi recenti, disponibili in streaming in Italia. */
+  async function news(opts) {
+    const page = String(opts.page || 1);
+    if (opts.cinema) {
+      const d = await tmdb('/movie/now_playing', { language: 'it-IT', region: 'IT', page });
+      return { items: ((d && d.results) || []).map((r) => E.normalizeRow(r, 'movie')), pages: (d && d.total_pages) || 1 };
+    }
+    const w = E.newsWindow(opts.kind);
+    const p = { language: 'it-IT', include_adult: 'false', page, watch_region: 'IT', with_watch_monetization_types: 'flatrate|free|ads', sort_by: 'popularity.desc' };
+    const ids = opts.provider ? [opts.provider] : (opts.providers || []);
+    if (ids.length) p.with_watch_providers = ids.join('|');
+    if (opts.kind === 'movie') {
+      p['primary_release_date.gte'] = w.from;
+      p['primary_release_date.lte'] = w.to;
+      p['vote_count.gte'] = '5';
+    } else {
+      p['air_date.gte'] = w.from;
+      p['air_date.lte'] = w.to;
+    }
+    const d = await tmdb('/discover/' + opts.kind, p);
+    return { items: ((d && d.results) || []).map((r) => E.normalizeRow(r, opts.kind)), pages: (d && d.total_pages) || 1 };
+  }
+
   /** Cerca un film o una serie per nome. */
   async function searchTitles(q) {
     const d = await tmdb('/search/multi', { query: q, language: 'it-IT', include_adult: 'false' });
@@ -497,5 +544,5 @@
     return result;
   }
 
-  root.Api = { more, searchTitles, storedKeys, hasSharedTmdb, http, profilesOf, viewersOf, tasteFor, spoilerFree, saveRating, importHistory, teachBatch, refreshTracked, details, store, UserError, search, loadTitle, similar, providersIT, searchPeople, searchKeywords, interpret, testKeys, keys };
+  root.Api = { checkAlerts, news, more, searchTitles, storedKeys, hasSharedTmdb, http, profilesOf, viewersOf, tasteFor, spoilerFree, saveRating, importHistory, teachBatch, refreshTracked, details, store, UserError, search, loadTitle, similar, providersIT, searchPeople, searchKeywords, interpret, testKeys, keys };
 })(window);

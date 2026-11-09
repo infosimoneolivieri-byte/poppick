@@ -681,6 +681,25 @@
     return null;
   }
 
+  /** Prima offerta guardabile senza pagare a parte: nei vostri abbonamenti, o ovunque se non ne avete scelti. */
+  function firstStreamingOffer(p, subs) {
+    if (!p) return null;
+    const mine = subs || [];
+    for (const list of [p.flatrate, p.free, p.ads]) {
+      const hit = (list || []).find((o) => !mine.length || mine.includes(o.provider_id));
+      if (hit) return hit;
+    }
+    return null;
+  }
+
+  /** Date per la sezione Novità, in formato AAAA-MM-GG. */
+  function newsWindow(kind, now) {
+    const n = now || new Date();
+    const iso = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    const back = new Date(n.getTime() - (kind === 'movie' ? 180 : 45) * 86400000);
+    return { from: iso(back), to: iso(n) };
+  }
+
   const SEARCH_URLS = [
     [/netflix/i, 'https://www.netflix.com/search?q='],
     [/amazon prime|prime video/i, 'https://www.primevideo.com/search?phrase='],
@@ -831,7 +850,7 @@
   }
 
   const api = {
-    matchesBasics, sortItems, accessOf, availableMinutes, certOf, warningsOf, paceOf, GENRES, STYLE_GROUPS, STYLES, neededTerms, buildSpecs, styleHits, pickTrailer, trailerSearchUrl, LANGUAGES, COUNTRIES, CRITERIA, PRESETS, AI_SYSTEM,
+    firstStreamingOffer, newsWindow, matchesBasics, sortItems, accessOf, availableMinutes, certOf, warningsOf, paceOf, GENRES, STYLE_GROUPS, STYLES, neededTerms, buildSpecs, styleHits, pickTrailer, trailerSearchUrl, LANGUAGES, COUNTRIES, CRITERIA, PRESETS, AI_SYSTEM,
     defaultFilters, applyPreset, genreIds, planKinds, buildDiscover, planPools, poolSort,
     filterTvCredits, normalizeRow, mergeDetails, parseOmdb, audienceRaw, audienceRanked, criticRaw, fame,
     rank, finalFilter, offersOf, watchUrl, reasons, fmtRuntime, relaxHints, normalizeAI, extractJson,
